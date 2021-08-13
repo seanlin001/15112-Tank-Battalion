@@ -42,7 +42,7 @@ def appStarted(app):
     #app.playerTank = Tank(53, 237, 0, 3, False, 'u')
     #app.playerTank = Tank(app.width*0.3+app.leftMargin, app.height-app.bottomMargin*2, 0, 3, False, 'u')
     app.enemyTankList = []
-    
+    app.tankActivationTimeGap = 2
     app.timerDelay = 0
     app.stage = 1
     app.upBulletImg = app.loadImage('bullet.png')
@@ -52,11 +52,10 @@ def appStarted(app):
     app.bullets = []
     app.bulletXBuffer = 4
     app.bulletYBuffer = 5.5
-    app.map = buildDefaultMap()
-    app.maxEnemyTank = 3
-    app.generatedEnemyTank = 0
-    app.counter = 0
-    app.generateSpeed = 5
+    # app.map = buildRandomMap(app.stage, 3, 15, 0, 26)#buildDefaultMap()
+    #app.map = buildDefaultMap()
+    app.map = buildRandomMap2(app.stage, 3, 15, 0, 26)#buildDefaultMap()
+    app.maxEnemyTank = 20
     app.stageStartTime = time.time()
     app.lives = 3
     app.gameOver = False
@@ -66,16 +65,26 @@ def appStarted(app):
     app.incomingEnemies = app.maxEnemyTank
     app.explosionList = []
     app.rewardPerTank = 100
-    # print(app.enemyTankList)
+    app.enemyShootFrequency = getEnemyShootFrequency(app)
+
+def getEnemyShootFrequency(app):
+    return min(.005 + .0005* app.stage, .02)
 
 def newStage(app):
     app.incomingEnemies = app.maxEnemyTank
     app.stage +=1
-    app.map =buildMap(app.stage)
+    app.map = buildRandomMap2(app.stage, 3, 15, 0, 26)
+    app.stagePassed = False
+    app.stageStartTime = time.time()
+    setupPlayerTank(app)
+    app.explosionList = []
+    app.enemyShootFrequency = getEnemyShootFrequency(app)
+    app.enemyTankList = []
+    createEnemies(app)
 
 def buildMap(stage):
     if stage==1 or stage==2:
-        map =buildDefaultMap()
+        map = buildDefaultMap()
     return map
 
 def drawMenuScreen(app, canvas):
@@ -85,15 +94,13 @@ def drawMenuScreen(app, canvas):
     canvas.create_text(app.width/2, app.height/2+50, text='H - HELP', font='Arial 20')
 
 def setupPlayerTank(app):
-    #app.playerTank = Tank(53, 237, 0, 3, False, 'u')
     app.playerTank = Tank(app.width*0.3+app.leftMargin, app.height-app.bottomMargin*2, 0, 3, False, 'u')
-
 
 def keyPressed(app, event):
     if app.menu == True:
         if app.menuInstructions == True:
             if event.key.lower() == "q":
-                resetApp(app)
+                closeInstructions(app)
         else: 
             if event.key.lower() == "h":
                 app.menuInstructions = True
@@ -131,21 +138,35 @@ def keyPressed(app, event):
         elif event.key.lower() == 'x':
             b = app.playerTank.shootBullet()
             app.bullets.append(b)
+        elif event.key.lower() == 'l':
+            newStage(app)
+        elif event.key == 'Enter' and app.stagePassed == True:
+            newStage(app)
+        elif event.key.lower() == 'q' and app.stagePassed == True:
+            appStarted(app)
+        elif event.key.lower() == 'q' and app.gameOver == True:
+            appStarted(app)
+            
         
 def keyReleased(app, event):
     if event.key == 'Up' or event.key == 'Down' or event.key == 'Left' or event.key == 'Right':
         app.playerTank.inMove = False
 
-def resetApp(app):
+def closeInstructions(app):
     app.menu = True
     app.menuInstructions = False
     
 def timerFired(app):
-    if app.gameOver == False and app.menu==False and app.stagePassed==False:
-        movePlayerTank(app)
-        updateBullet(app)
-        updateEnemyTank(app)
-        updateExplosion(app)
+    if app.gameOver == False and app.menu==False:
+        if app.stagePassed==False:
+            movePlayerTank(app)
+            updateBullet(app)
+            updateEnemyTank(app)
+            updateExplosion(app)
+            #printDebug(app)
+        #else:
+        #    newStage(app)
+    
 
 def updateExplosion(app):
     for i in reversed(range(len(app.explosionList))):
@@ -161,15 +182,9 @@ def drawInstructions(app, canvas):
     canvas.create_text(40, app.height-20, text='Q - QUIT', fill='white', font='Arial 10 bold')
 
 def getCellBounds(app, row, col):
-    gridWidth  = app.width - app.leftMargin - app.rightMargin
-    gridHeight = app.height - 2*app.margin
-    cellWidth = gridWidth / app.cols
-    cellHeight = gridHeight / app.rows
-    x0 = app.margin*2 + col * cellWidth
-    x1 = app.margin*2 + (col+1) * cellWidth
-    y0 = app.margin + row * cellHeight
-    y1 = app.margin + (row+1) * cellHeight
-    return(x0, y0, x1, y1)
+    x1, y1 = rowColToCoordinate(row, col, app.leftMargin, app.topMargin, app.rowHeight, app.colWidth, 1)
+    x2, y2 = rowColToCoordinate(row, col, app.leftMargin, app.topMargin, app.rowHeight, app.colWidth, 4)
+    return(x1, y1, x2, y2)
 
 # # Grid will be invisible once wall generation is developed
 # def drawGrid(app, canvas):
@@ -191,7 +206,7 @@ def drawGame(app, canvas):
 def createEnemies(app):
     for col in range(app.maxEnemyTank):
         x, y = rowColToCoordinate(0, col, app.leftMargin, app.topMargin, app.rowHeight, app.colWidth, 0)
-        tank = EnemyTank(x, y, 1, 2, True, False, col*2, 'e')
+        tank = EnemyTank(x, y, 1, 2, True, False, col*app.tankActivationTimeGap, 'e')
         app.enemyTankList.append(tank)
 
 def drawExplosion(app, canvas):
@@ -203,28 +218,30 @@ def drawExplosion(app, canvas):
 def updateEnemyTank(app):
     for tank in app.enemyTankList:
         t = time.time() - app.stageStartTime - tank.actTime
-        if tank.isActivated == False:
+        if not tank.isActivated:
             if  t > 0:
                 tank.isActivated = True
-        elif tank.isActivated == True:
+        elif tank.isActivated and not tank.isKilled:
             dx, dy = tank.getMoveUnit(t)
             newX, newY = tank.x+dx, tank.y+dy
             cells = getImpactedCell(app, newX, newY, app.tankXBuffer, app.tankYBuffer, tank.orientation)
-            canMove = not cellsWillBlock(app, cells)
+            canMove = not cellsWillBlock(app, cells, newX, newY)
             withinBoundary = withinBounds(app, newX, newY, app.tankXBuffer, app.tankYBuffer)
             if canMove and withinBoundary:
                 tank.moveTank(t)
             else:
-                tank.orientation = (tank.orientation+1)%4
+                k = random.randint(0,4)
+                tank.orientation = (tank.orientation+k)%4
             r = random.uniform(0, 1)
             #shooting frequency control
-            if r > .98:
-                b = tank.shootBullet()
-                app.bullets.append(b)
+            if tank.isActivated and not tank.isKilled:
+                if r > 1- app.enemyShootFrequency:
+                    b = tank.shootBullet()
+                    app.bullets.append(b)
     incCount = 0
     killCount =0
     for tank in app.enemyTankList:
-        if tank.isActivated == False and tank.isKilled == False:
+        if not tank.isActivated:
             incCount += 1
         if tank.isKilled:
             killCount +=1
@@ -238,8 +255,8 @@ def drawEnemyTank(app, canvas):
     for tank in app.enemyTankList:
         if tank.isActivated and not tank.isKilled:
             hsize = 9
-            canvas.create_rectangle(tank.x-hsize, tank.y-hsize, tank.x+hsize, tank.y+hsize, fill='gray')
-            # canvas.create_image(tank.x, tank.y, image=ImageTk.PhotoImage(app.enemyTank1Img))
+            canvas.create_rectangle(tank.x-hsize, tank.y-hsize, tank.x+hsize, tank.y+hsize, fill='gray', outline='red')
+            #canvas.create_image(tank.x, tank.y, image=ImageTk.PhotoImage(app.enemyTank1Img))
 
 # def enemyDebug(app):
 #     for tank in app.enemyTankList:
@@ -257,9 +274,12 @@ def drawMap(app, canvas):
                 if cell.cellType == '#':
                     canvas.create_rectangle(x1, y1, x2, y2, fill='firebrick', outline='black')
                 elif cell.cellType == '@':
-                    canvas.create_rectangle(x1, y1, x2, y2, fill='grey', outline='white')
+                    canvas.create_rectangle(x1, y1, x2, y2, fill='gainsboro', outline='gray')
                 elif cell.cellType =='b':
-                    canvas.create_rectangle(x1, y1, x2, y2, fill='gold', outline='')
+                    if app.gameOver == True:
+                        canvas.create_rectangle(x1, y1, x2, y2, fill='crimson', outline='')
+                    else:
+                        canvas.create_rectangle(x1, y1, x2, y2, fill='gold', outline='')
                     #print(i,j)
                     #print(x1, y1, x2, y2)
 
@@ -284,14 +304,12 @@ def updateBullet(app):
         # Remove bullet from list if it reaches beyond boundaries
         # bx = app
         c1 = withinBounds(app, b.x, b.y, app.bulletXBuffer, app.bulletYBuffer)
+        #c2: whether bullet hit brick
+        c2 = False
         if c1:
-            cells = getImpactedCell(app, b.x, b.y, app.bulletXBuffer, app.bulletYBuffer, app.bullets[i].orientation)
-            c2 = False
+            cells = getImpactedCell(app, b.x, b.y, app.bulletXBuffer+2, app.bulletYBuffer+2, app.bullets[i].orientation)
             for cell in cells:
-                # print(cell)
                 if cell[0] >= 0 and cell[0] <= app.rows and cell[1] >= 0 and cell[1] <= app.cols:
-                    # print(app.map[cell[0]])
-                    # print(len(app.map[cell[0]]))
                     ce = app.map[cell[0]][cell[1]]
                     if ce.cellType == '#':
                         app.map[cell[0]][cell[1]].cellType = '.'
@@ -310,14 +328,13 @@ def updateBullet(app):
                 app.explosionList.append(e)
                 setupPlayerTank(app)
         else:
-            i, c3 = bulletHitEnemyTank(app, b)
-            print("hitting enemy:")
-            print(i, c3)
-            if (i>=0 and c3):
-                e = Explosion(app.enemyTankList[i].x, app.enemyTankList[i].y)
-                app.explosionList.append(e)
-                app.score += app.rewardPerTank
-                app.enemyTankList.pop(i)
+            j, c3 = bulletHitEnemyTank(app, b)
+            if (j>=0 and c3):
+                if app.enemyTankList[j].isActivated==True and app.enemyTankList[j].isKilled==False:
+                    e = Explosion(app.enemyTankList[j].x, app.enemyTankList[j].y)
+                    app.explosionList.append(e)
+                    app.score += app.rewardPerTank
+                    app.enemyTankList[j].isKilled=True
         c3 =False
         for tank in app.enemyTankList:
             hit = isHit(tank, b)
@@ -356,7 +373,7 @@ def bulletHitEnemyTank(app, b):
 
 def isHit(tank, bullet):
     d = ((tank.y-bullet.y)**2+(tank.x-bullet.x)**2)**0.5
-    if d < 5 and tank.side != bullet.side:
+    if d < 5 and tank.side != bullet.side and tank.isActivated and not tank.isKilled:
         return True
     else:
         return False
@@ -371,13 +388,13 @@ def withinBounds(app, x, y, xbuffer, ybuffer):
         return True
 
 def isValidRow(app, row):
-    if row>=0 and row<=app.rows:
+    if row>=0 and row<=app.rows-1:
         return True
     else:
         return False
 
 def isValidCol(app, col):
-    if col>=0 and col<=app.cols:
+    if col>=0 and col<=app.cols-1:
         return True
     else:
         return False
@@ -395,54 +412,53 @@ def getImpactedCell(app, x, y, xbuffer, ybuffer, orientaion):
 
     res= [[row1, col1], [row2, col2], [row3, col3], [row4, col4]]
     if orientaion ==0:
-        return [res[0], res[1]]
+        ores= [res[0], res[1]]
     if orientaion ==1:
-        return [res[2], res[3]]
+        ores= [res[2], res[3]]
     if orientaion ==2:
-        return [res[0], res[2]]
+        ores= [res[0], res[2]]
     if orientaion ==3:
-        return [res[1], res[3]]
+        ores= [res[1], res[3]]
+    result = []
+    for i in range(len(ores)):
+        if isValidRow(app, ores[i][0]) and isValidCol(app, ores[i][1]):
+            result += [ores[i]]
+    return result
 
 
 def drawPlayerTank(app, canvas):
     if not app.playerTank.isKilled:
         canvas.create_image(app.playerTank.x, app.playerTank.y, image=ImageTk.PhotoImage(app.pTankImg))
+        #hsize=9
+        #canvas.create_rectangle(app.playerTank.x-9, app.playerTank.y-9, app.playerTank.x+9, app.playerTank.y+9, fill='green')
         if time.time() - app.playerTank.birth <=5:
             canvas.create_rectangle(app.playerTank.x-12, app.playerTank.y-12, app.playerTank.x+12, app.playerTank.y+12, fill='', outline = "white")
-    # canvas.create_rectangle(app.playerTank.x-5, app.playerTank.y-5, app.playerTank.x+5, app.playerTank.y+5, fill='green')
+    
 
-def cellsWillBlock(app, cells):
+def cellsWillBlock(app, cells, newX, newY):
     result = False
     for cell in cells:
-        if cell[0] >= 0 and cell[0] <= app.rows and cell[1] >= 0 and cell[1] <= app.cols:
+        #print("cell in cells:")
+        #print(cell[0], cell[1])
+        if cell[0] >= 0 and cell[0] <= app.rows-1 and cell[1] >= 0 and cell[1] <= app.cols-1:
             row = cell[0]
             col = cell[1]
             cres = app.map[row][col].cellType == '#' or app.map[row][col].cellType == '@'
             if cres:
-                pass
-                #print(cells)
-                #print("blocking info")
-                #print(row, col)
-                #print(app.map[row][col].cellType)
-                #x, y =rowColToCoordinate(row, col, app.leftMargin, app.topMargin, app.rowHeight, app.colWidth, 1)
-                #print("blocking cell vertices:")
-                #print(x,y)
-                #x, y =rowColToCoordinate(row, col, app.leftMargin, app.topMargin, app.rowHeight, app.colWidth, 2)
-                #print(x,y)
-            result = result or cres
+                result = result or cres
     return result
 
 def movePlayerTank(app):
     dx, dy = app.playerTank.getMoveUnit()
     newX, newY = app.playerTank.x+dx, app.playerTank.y+dy
     cells = getImpactedCell(app, newX, newY, app.tankXBuffer, app.tankYBuffer, app.playerTank.orientation)
-    canMove = not cellsWillBlock(app, cells)
-    if canMove:
+    canMove = not cellsWillBlock(app, cells, newX, newY)
+    withinBoundary = withinBounds(app, newX, newY, app.tankXBuffer, app.tankYBuffer)
+    if canMove and withinBoundary:
         app.playerTank.moveTank()
 
+
 def drawsideInfo(app, canvas):
-    # incoming tanks represented by white diamonds
-    
     canvas.create_text(app.width-app.rightMargin/2, app.height*0.3, text=f'Incoming: {app.incomingEnemies}')
     canvas.create_text(app.width-app.rightMargin/2, app.height/2, text=f'Score: {app.score}')
     canvas.create_text(app.width-app.rightMargin/2, app.height*2/3, text=f'Lives: {app.lives}')
@@ -451,8 +467,11 @@ def drawsideInfo(app, canvas):
     if app.gameOver == True:
         canvas.create_text(app.width/2, app.height/2, text='GAME OVER', fill='white', font='Arial 40 bold')
         canvas.create_text(app.width/2, app.height*2/3, text=f'SCORE: {app.score}', fill='white', font = 'Arial 30 bold')
+        canvas.create_text(app.width/2, app.height*3/4, text='Q - QUIT', fill='white', font='Arial 10 bold')
     if app.stagePassed == True:
-        canvas.create_text(app.width/2, app.height/2, text=F'STAGE {app.stage} PASSED', fill='white', font='Arial 40 bold')
+        canvas.create_text(app.width/2, app.height/2, text=f'STAGE {app.stage} PASSED', fill='white', font='Arial 40 bold')
+        canvas.create_text(app.width/2, app.height*2/3, text='Press ENTER for the next stage', fill='white', font='Arial 20 italic')
+        canvas.create_text(app.width/2, app.height*3/4, text='Q - QUIT', fill='white', font='Arial 10 bold')
 
 def redrawAll(app, canvas):
     if app.menu == True:

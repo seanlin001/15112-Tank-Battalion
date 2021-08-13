@@ -138,21 +138,14 @@ def coordinateToRowCol(x, y, leftmargin, topmargin, rowheight, colwidth):
     #     x +=colwidth/2
     #     y +=rowheight/2    
     
-    row = roundHalfUp((y-topmargin)/rowheight-1)
-    col = roundHalfUp((x-leftmargin)/colwidth-1)
+    row = int((y-topmargin)/rowheight)
+    col = int((x-leftmargin)/colwidth)
     
     return row, col
 
-def roundHalfUp(d): #helper-fn
-    # Round to nearest with ties going away from zero.
-    rounding = decimal.ROUND_HALF_UP
-    # See other rounding options here:
-    # https://docs.python.org/3/library/decimal.html#rounding-modes
-    return int(decimal.Decimal(d).to_integral_value(rounding=rounding))
-
-class Orientation(object):
-    def __init__(self, o):
-        self.o = o
-        # 1, 2, 3, 4 = up, down, left, right
+# class Orientation(object):
+#     def __init__(self, o):
+#         self.o = o
+#         # 1, 2, 3, 4 = up, down, left, right
 
 
